@@ -1,0 +1,131 @@
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: inventory-system
+---
+# Deployment untuk inventory-service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory-service
+  namespace: inventory-system
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: inventory-service
+  template:
+    metadata:
+      labels:
+        app: inventory-service
+    spec:
+      containers:
+        - name: inventory-service
+          image: inventory-service:v1.0.0
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 5001
+          env:
+            - name: MONGO_URI
+              value: mongodb://mongo:27017/inventorydb
+            - name: JWT_SECRET
+              value: supersecretjwtkey
+          volumeMounts:
+            - name: certs
+              mountPath: /app/certs
+              readOnly: true
+      volumes:
+        - name: certs
+          secret:
+            secretName: inventory-certs
+---
+# Service untuk inventory-service
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-service
+  namespace: inventory-system
+spec:
+  selector:
+    app: inventory-service
+  ports:
+    - port: 443
+      targetPort: 5001
+  type: ClusterIP
+---
+# Deployment untuk API Gateway
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: inventory-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      containers:
+        - name: api-gateway
+          image: api-gateway:v1.0.0
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 3000
+          env:
+            - name: MONGO_URI
+              value: mongodb://mongo:27017/inventorydb
+            - name: JWT_SECRET
+              value: supersecretjwtkey
+---
+# Service untuk API Gateway
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: inventory-system
+spec:
+  selector:
+    app: api-gateway
+  ports:
+    - port: 80
+      targetPort: 3000
+  type: LoadBalancer
+---
+# Secret TLS untuk HTTPS
+apiVersion: v1
+kind: Secret
+metadata:
+  name: inventory-certs
+  namespace: inventory-system
+  labels:
+    app: inventory-service
+stringData:
+  cert.pem: |
+    -----BEGIN CERTIFICATE-----
+    (ISI CERT ANDA)
+    -----END CERTIFICATE-----
+  key.pem: |
+    -----BEGIN PRIVATE KEY-----
+    (ISI PRIVATE KEY ANDA)
+    -----END PRIVATE KEY-----
+type: Opaque
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mongo-seed
+  namespace: inventory-system
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: mongo-seed
+          image: mongo-seed:latest  # nama image hasil build seed.js
+          imagePullPolicy: Never

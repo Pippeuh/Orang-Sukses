@@ -1,0 +1,24 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mongo-seed-job
+  namespace: inventory-system
+spec:
+  template:
+    spec:
+      containers:
+        - name: mongo-seed
+          image: mongo:5.0
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "🔁 Seeding MongoDB...";
+              mongo mongodb://mongo:27017/inventorydb --eval '
+                db.items.insertMany([
+                  { name: "Pensil", quantity: 100, price: 1500 },
+                  { name: "Pulpen", quantity: 50, price: 2000 },
+                  { name: "Buku", quantity: 30, price: 5000 }
+                ]);
+                print("✅ Done seeding.");
+              '
+      restartPolicy: OnFailure
