@@ -1,0 +1,112 @@
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: inventory-system
+---
+# Deployment untuk inventory-service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory-service
+  namespace: inventory-system
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: inventory-service
+  template:
+    metadata:
+      labels:
+        app: inventory-service
+    spec:
+      containers:
+        - name: inventory-service
+          image: inventory-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 5001
+          env:
+            - name: MONGO_URI
+              value: mongodb://mongo:27017/inventorydb
+            - name: JWT_SECRET
+              value: supersecretjwtkey
+          volumeMounts:
+            - name: certs
+              mountPath: /app/certs
+              readOnly: true
+      volumes:
+        - name: certs
+          secret:
+            secretName: inventory-certs
+---
+# Service untuk inventory-service
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-service
+  namespace: inventory-system
+spec:
+  selector:
+    app: inventory-service
+  ports:
+    - port: 443
+      targetPort: 5001
+  type: ClusterIP
+---
+# Deployment untuk API Gateway
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: inventory-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      containers:
+        - name: api-gateway
+          image: api-gateway:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 3000
+---
+# Service untuk API Gateway
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: inventory-system
+spec:
+  selector:
+    app: api-gateway
+  ports:
+    - port: 80
+      targetPort: 3000
+  type: LoadBalancer
+---
+# Secret TLS untuk HTTPS
+apiVersion: v1
+kind: Secret
+metadata:
+  name: inventory-certs
+  namespace: inventory-system
+  labels:
+    app: inventory-service
+stringData:
+  cert.pem: |
+    -----BEGIN CERTIFICATE-----
+    MIIENzCCAx+gAwIBAgIUDUIeC+4Iv2j5o3rhTC+YihnnncwwDQYJKoZIhvcNAQELBQAwgaoxCzAJBgNVBAYTAklEMRAwDgYDVQQIDAdKYWthcnRhMRgwFgYDVQQHDA9KYWthcnRhIFNlbGF0YW4xHDAaBgNVBAoME1VQTiBWZXRlcmFuIEpha2FydGExDDAKBgNVBAsMA0ZJSzESMBAGA1UEAwwJbG9jYWxob3N0MS8wLQYJKoZIhvcNAQkBFiAyMzEwNTExMDYwQG1haGFzaXN3YS51cG52ai5hYy5pZDAeFw0yNTA2MTcwMTUwMTRaFw0yNjA2MTcwMTUwMTRaMIGqMQswCQYDVQQGEwJJRDEQMA4GA1UECAwHSmFrYXJ0YTEYMBYGA1UEBwwPSmFrYXJ0YSBTZWxhdGFuMRwwGgYDVQQKDBNVUE4gVmV0ZXJhbiBKYWthcnRhMQwwCgYDVQQLDANGSUsxEjAQBgNVBAMMCWxvY2FsaG9zdDEvMC0GCSqGSIb3DQEJARYgMjMxMDUxMTA2MEBtYWhhc2lzd2EudXBudmouYWMuaWQwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCz351pv2H5ogwTKYhk6LmwjGn6HWfJ2MH2HSooDrEAwcWm2NygfsQFobwGyd6tuM6+1aoQdUg+VQ0xyCmZpGGB5JBlktaOTqe5r7FryOy1XEOD2OiPJq6U4srOkWgHV+oS8nkVlxUFlEdOTAr6ZMMJtXAhd2H7jkVvfv9FEtTnmXx/HdkQl9hAiUp7QmZqImLzdbLMRvkut8Y0kto2lAFp/AzCnXnIPDaru7YFpQFdt0sEklOpH9LjJgAjM2f/Ll1x1NP9SpGBFnREWuaft9jxVSmAGluk++ZP+qzjvrVIws9A2vQPXsOrCKHDq6ys5bUecgGshEY9Thy0BuYpg+bXAgMBAAGjUzBRMB0GA1UdDgQWBBQeBIvjs/7jqwhFKlxf7xXDbt22/TAfBgNVHSMEGDAWgBQeBIvjs/7jqwhFKlxf7xXDbt22/TAPBgNVHRMBAf8EBTADAQH/MA0GCSqGSIb3DQEBCwUAA4IBAQCCdBpPX78jC72zlhSlGPB8Ne3r6Hfm95HLCAkqDi6NqyEY95iExs6EzK61MnvnYzalZSxhrbQQHIf+YswcnBtlolBN/jGEZK+vsqI38B+oUnNKroZ2KjqfZ1RM76dbNMK8Ol2x46nIEkCbtNIzsNKxvHGRI+aWNKAXX+NeOP52PDoQiNstAsSBMmSMrXp+3qDOJT+5KVzSaxMPRZHFYc0kltdrNVnOnpDMRETtUc3cXyIZgf7howpPXmkzxTh4EPTskFn5G24aNflIL7M3juS0x8Yv+LVsU9gNT8a/qpX7ubCvohYnfIE47G/cP+308kQbnjmJ8VVUOwJ4x2V4Hwii
+    -----END CERTIFICATE-----
+  key.pem: |
+    -----BEGIN PRIVATE KEY-----
+    MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCz351pv2H5ogwTKYhk6LmwjGn6HWfJ2MH2HSooDrEAwcWm2NygfsQFobwGyd6tuM6+1aoQdUg+VQ0xyCmZpGGB5JBlktaOTqe5r7FryOy1XEOD2OiPJq6U4srOkWgHV+oS8nkVlxUFlEdOTAr6ZMMJtXAhd2H7jkVvfv9FEtTnmXx/HdkQl9hAiUp7QmZqImLzdbLMRvkut8Y0kto2lAFp/AzCnXnIPDaru7YFpQFdt0sEklOpH9LjJgAjM2f/Ll1x1NP9SpGBFnREWuaft9jxVSmAGluk++ZP+qzjvrVIws9A2vQPXsOrCKHDq6ys5bUecgGshEY9Thy0BuYpg+bXAgMBAAECggEAG2kvK192FkfauuGAPrnKcRGiJXKYD5tKdO+H2O04OGskbDiDEqrkGLmcwOoVgaLL+tVDt9ivnDQeMSEVhIDs4mcK7De0Hkv1Omeq9sfP7r6zLo3+ZAZF4jwszM2S1/+j6k7szdylYEwdkQcnQHYyKgduIY4jA+Xv8JL0DWTWcL6M0e+uLLM/RzpXWiGWcp8RAjuQ8z2UQ2TqHA/lCv6Da73i7DKnDH3wbNtw1RVdYs2AsoRBD2jsxIZkY40t4zY7T6PTAnBsC5Zg2d5//+PhS31RGKb9oghKK9NCyhAwcoJ8OZzRia7eEw3v0uuNMkTlR5LMaRmbQzr+xiEdxv4gHQKBgQDvl+SLprv7UGmdBQdLrONw75GVU6IalHozsEJDZISK9JBxjduYo7j0BcMoudXZnO0tJkBWY3P6OUim9PgGZJ0lYB/S8RH80swULJnNvS7lliJeifas0mCXO6eeN8jDVM90M6gZBjG5iHjSJB7pLw15Rif0smgmrO9EIqwW1wEaXQKBgQDAMNMMyIGLzDWAf4hrdvXKPyO8TUocpcmwr/eu2q82oFA5432XZKEkUj+uwUaC6YTOKZaW7KGreEGx3zIJDa+RWhHLrXU8tncRYXGyyrmfa58414o+4QOsG1UfQaYaR/xKkBVYEZyQ5Lasch1N9w9tvo902S4AYaXezmOz3Mb6wwKBgQCPA1yBW2oTzeDswAalzjIIxIdi2gQF16DF36z96y8OfoMFtQZiK0AIMLRYR+z1My2DaLS4nC6rKqxKNCkkL8R5fdIhKJJzFiSI2kKIQyeOFTq4saNTb1QGka4wy92DcslN9FOfdEoUE/kCflsRF2v0esL41dFDXLCJPCT6kSXwZQKBgFDiu5A/urXZZhMEmaeQ03UhCaswZCaWZ8Ii7Pz8MI2u/tS+N5dF1MPykba8xS5HlYsm2af/QzNlU1DG/Mnupptn6uFryVGaAZahCjcTNvgvVT2ZCSfZj7AZeMPE32FkNnwzE6iTEO+yMmd1R3wOpMGtV7b3yHKEpkiVWETUgDH9AoGAHW3hOWKMyMKjeYV1UbTk8DOTSRIB+aOQoSY7BDxKBLDHH/7bBwjOvf79tgGpvVS1b8RkQeNaQ+OVUmW9gvGZuJj92fBij26W6M2JcpHaPrJ/+SFlq3CCq1AOueMihew/x1PrBcXQZyTI6/sDcKf+p8Yj9OvwmWXf2Zz9C4zHiSU=
+    -----END PRIVATE KEY-----
+  
+type: Opaque
